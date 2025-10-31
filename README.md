@@ -6,10 +6,12 @@ A self-contained, reusable YouTube video player that supports multiple instances
 
 - 🎬 Multiple player instances on a single page
 - ⏱️ Segment playback with custom start and end times
-- 🎮 Custom controls (play/pause, seek, speed, fullscreen)
+- 🎮 Custom controls (play/pause, seek, speed, fullscreen, help menu)
 - 📱 Responsive design with inline styling
 - 🚀 Zero external dependencies (except YouTube IFrame API)
 - 🔧 Self-contained: just load and use
+- ⌨️ Keyboard shortcuts support
+- 📚 Built-in help menu
 
 ## Quick Start
 
@@ -112,8 +114,17 @@ Each player includes:
 - **Forward 10 seconds**: Skip ahead by 10 seconds
 - **Progress bar**: Drag to seek
 - **Time display**: Current time and duration
-- **Playback speed**: 0.25× to 2.0×
+- **Playback speed**: 0.1× to 3.0× (increments of 0.1×)
 - **Fullscreen**: Toggle fullscreen mode
+- **Help Menu**: Information about controls, keyboard shortcuts, and captions
+
+### Keyboard Shortcuts
+
+When the video is focused:
+- **Spacebar**: Play or pause the video
+- **Left Arrow (←)**: Skip backward 5 seconds
+- **Right Arrow (→)**: Skip forward 5 seconds
+- **C**: Toggle English captions on/off
 
 ### Smart Features
 
@@ -122,6 +133,7 @@ Each player includes:
 - Independent operation of multiple players
 - Error handling and user feedback
 - Optimized API loading (loads once for all players)
+- Scrollable help menu with detailed instructions
 
 ## Local Testing
 
@@ -176,5 +188,12 @@ Tested and working on:
 
 ## Version
 
-**v1.0** - Initial release
+**v1.4** - Latest release
+- Added help menu with detailed controls information
+- Removed settings button
+- Added scrollable help menu
+- Updated speed increments to 0.1× steps
+- Expanded speed range to 0.1× - 3.0×
+- Improved keyboard shortcuts documentation
+- Better UI organization
 
