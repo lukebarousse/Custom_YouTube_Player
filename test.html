@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PlayerSync - Local Testing Environment</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section h2 {
+            margin-top: 0;
+            color: #555;
+        }
+        .test-section p {
+            color: #777;
+            margin-bottom: 20px;
+        }
+        .code-block {
+            background: #f8f8f8;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            overflow-x: auto;
+            margin: 10px 0;
+        }
+        .success {
+            color: green;
+        }
+        .error {
+            color: red;
+        }
+        .warning {
+            color: orange;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎬 PlayerSync - Local Testing Environment</h1>
+
+    <div class="test-section">
+        <h2>Test 1: Standard Player with Start and End Times</h2>
+        <p>This player should play a segment from 16:51 (1011s) to 34:01 (2041s).</p>
+        <div class="code-block">
+&lt;div class="custom-yt-player"<br>
+     data-video-id="7mz73uXD9DA"<br>
+     data-start-time="1011"<br>
+     data-end-time="2041"&gt;<br>
+&lt;/div&gt;
+        </div>
+        <div class="custom-yt-player"
+             data-video-id="7mz73uXD9DA"
+             data-start-time="1011"
+             data-end-time="2041">
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 2: Full Video Player (No End Time)</h2>
+        <p>This player should play the entire video without an end time restriction.</p>
+        <div class="code-block">
+&lt;div class="custom-yt-player"<br>
+     data-video-id="dQw4w9WgXcQ"&gt;<br>
+&lt;/div&gt;
+        </div>
+        <div class="custom-yt-player"
+             data-video-id="dQw4w9WgXcQ">
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 3: Different Video with Start Time Only</h2>
+        <p>This player starts at 5:00 (300s) and plays to the end of the video.</p>
+        <div class="code-block">
+&lt;div class="custom-yt-player"<br>
+     data-video-id="jNQXAC9IVRw"<br>
+     data-start-time="300"&gt;<br>
+&lt;/div&gt;
+        </div>
+        <div class="custom-yt-player"
+             data-video-id="jNQXAC9IVRw"
+             data-start-time="300">
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 4: Multiple Instances - Independence Check</h2>
+        <p>These two players should work independently. Playing one should not affect the other.</p>
+        <div class="code-block">
+&lt;div class="custom-yt-player"<br>
+     data-video-id="7mz73uXD9DA"<br>
+     data-start-time="0"<br>
+     data-end-time="60"&gt;<br>
+&lt;/div&gt;<br><br>
+&lt;div class="custom-yt-player"<br>
+     data-video-id="7mz73uXD9DA"<br>
+     data-start-time="60"<br>
+     data-end-time="120"&gt;<br>
+&lt;/div&gt;
+        </div>
+        <div class="custom-yt-player"
+             data-video-id="7mz73uXD9DA"
+             data-start-time="0"
+             data-end-time="60">
+        </div>
+        <br>
+        <div class="custom-yt-player"
+             data-video-id="7mz73uXD9DA"
+             data-start-time="60"
+             data-end-time="120">
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 5: Error Handling - Invalid Video ID</h2>
+        <p class="warning">This player should display an error message since the video ID is invalid.</p>
+        <div class="code-block">
+&lt;div class="custom-yt-player"<br>
+     data-video-id="INVALID_VIDEO_ID_12345"&gt;<br>
+&lt;/div&gt;
+        </div>
+        <div class="custom-yt-player"
+             data-video-id="INVALID_VIDEO_ID_12345">
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Test 6: Configuration Error - End Time Before Start Time</h2>
+        <p class="warning">This player should fail to initialize due to invalid configuration.</p>
+        <div class="code-block">
+&lt;div class="custom-yt-player"<br>
+     data-video-id="7mz73uXD9DA"<br>
+     data-start-time="1000"<br>
+     data-end-time="500"&gt;<br>
+&lt;/div&gt;
+        </div>
+        <div class="custom-yt-player"
+             data-video-id="7mz73uXD9DA"
+             data-start-time="1000"
+             data-end-time="500">
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>Testing Checklist</h2>
+        <ul>
+            <li>✅ Test 1: Play/pause, seek, and speed controls work correctly</li>
+            <li>✅ Test 2: Back 10 seconds (⏮) and forward 10 seconds (⏭) buttons work</li>
+            <li>✅ Test 3: Player stops at the end time for segmented playback</li>
+            <li>✅ Test 4: Multiple players on the same page work independently</li>
+            <li>✅ Test 5: Progress bar shows correct segment duration</li>
+            <li>✅ Test 6: Time display shows correct current time and duration</li>
+            <li>✅ Test 7: Error messages display for invalid configurations</li>
+            <li>✅ Test 8: YouTube API loads only once despite multiple players</li>
+            <li>✅ Test 9: Speed increments work in 0.1 steps (range 0.1× to 3.0×)</li>
+            <li>✅ Test 10: Speed display shows "1.0×" and adjusts properly (no decimals for whole numbers)</li>
+            <li>✅ Test 11: Settings menu opens and includes all speed options</li>
+            <li>✅ Test 12: Help menu (ⓘ) opens and displays CC and audio track information</li>
+            <li>✅ Test 13: Fullscreen button works</li>
+            <li>✅ Test 14: Players with only start time work correctly</li>
+        </ul>
+    </div>
+
+    <script src="player-sync.js" defer></script>
+
+    <script>
+        // Log player status to console for debugging
+        window.addEventListener('load', function() {
+            console.log('Page loaded. PlayerSync should be initializing...');
+            setTimeout(function() {
+                if (window.PlayerSync) {
+                    console.log('PlayerSync initialized with', window.PlayerSync.players.length, 'player(s)');
+                }
+            }, 2000);
+        });
+    </script>
+</body>
+</html>
+
