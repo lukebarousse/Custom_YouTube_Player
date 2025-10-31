@@ -1,7 +1,7 @@
 /*
  * PlayerSync - A self-contained, reusable YouTube video player
  * Supports multiple instances per page with segment playback
- * Version: 1.4
+ * Version: 1.5
  */
 
 (function(window) {
@@ -122,7 +122,7 @@
                     '<button class="play-pause" title="Play/Pause" style="background: none; border: none; color: #eee; font-size: 1.4em; cursor: pointer; padding: 5px 0; margin: 0 4px; line-height: 1; width: 35px; text-align: center;">▶︎</button>',
                     '<button class="back10" title="Back 10 seconds" style="background: none; border: none; color: #eee; font-size: 1.4em; cursor: pointer; padding: 5px 8px; margin: 0 4px; line-height: 1;">⏮︎</button>',
                     '<button class="forward10" title="Forward 10 seconds" style="background: none; border: none; color: #eee; font-size: 1.4em; cursor: pointer; padding: 5px 8px; margin: 0 4px; line-height: 1;">⏭︎</button>',
-                    '<input class="progress-bar" type="range" min="0" max="100" value="0" title="Seek" style="flex-grow: 1; margin: 0 10px; cursor: pointer; height: 8px; min-width: 80px; vertical-align: middle;" />',
+                    '<input class="progress-bar" type="range" min="0" max="100" value="0" title="Seek" style="flex-grow: 1; margin: 0 10px; cursor: pointer; height: 8px; min-width: 80px; vertical-align: middle; position: relative; z-index: 1;" />',
                     '<span class="time-display" style="font-size: 0.9em; margin: 0 5px; font-family: monospace; white-space: nowrap; color: #ccc; min-width: 80px; text-align: center;">',
                         '<span class="current-time">0:00</span> / <span class="duration">0:00</span>',
                     '</span>',
@@ -213,7 +213,10 @@
                 'rel': 0,
                 'fs': 1,
                 'showinfo': 0,
-                'enablejsapi': 1
+                'enablejsapi': 1,
+                'iv_load_policy': 3,
+                'cc_load_policy': 0,
+                'disablekb': 1
             };
 
             // Note: We don't set 'end' in playerVars because YouTube API
@@ -238,11 +241,40 @@
                     if (iframe && iframe.setAttribute) {
                         iframe.setAttribute('referrerpolicy', 'strict-origin-when-cross-origin');
                         console.log('PlayerSync: Set referrer policy on iframe');
+                        
+                        // Get container reference first
+                        var container = document.getElementById(self.instanceId + '-container');
+                        
+                        // Inject CSS to hide YouTube's native UI overlays and pseudo-elements
+                        var hideYTStyle = document.createElement('style');
+                        hideYTStyle.id = 'playersync-hide-overlays-' + self.instanceId;
+                        hideYTStyle.textContent = 
+                            '#' + self.instanceId + '-container::before, ' +
+                            '#' + self.instanceId + '-container::after, ' +
+                            '#' + self.instanceId + '-player::before, ' +
+                            '#' + self.instanceId + '-player::after, ' +
+                            '#' + self.instanceId + '-player iframe::before, ' +
+                            '#' + self.instanceId + '-player iframe::after, ' +
+                            '.player-wrapper::before, .player-wrapper::after, ' +
+                            '#' + self.instanceId + '-container .progress-bar::before, ' +
+                            '#' + self.instanceId + '-container .progress-bar::after, ' +
+                            '#' + self.instanceId + '-container input[type="range"]::before, ' +
+                            '#' + self.instanceId + '-container input[type="range"]::after, ' +
+                            '#' + self.instanceId + '-container input.progress-bar::before, ' +
+                            '#' + self.instanceId + '-container input.progress-bar::after { display: none !important; visibility: hidden !important; opacity: 0 !important; content: none !important; height: 0 !important; width: 0 !important; background: none !important; } ' +
+                            '#' + self.instanceId + '-player iframe { pointer-events: auto !important; }';
+                        document.head.appendChild(hideYTStyle);
+                        
+                        // Ensure container hides overflow to clip any YouTube UI
+                        if (container) {
+                            container.style.overflow = 'hidden';
+                            container.style.position = 'relative';
+                        }
                     }
                 } catch (e) {
-                    console.warn('PlayerSync: Could not set referrer policy:', e);
+                    console.warn('PlayerSync: Could not set referrer policy or hide overlays:', e);
                 }
-            }, 100);
+            }, 500);
 
             console.log('PlayerSync: YT.Player object created');
         } catch (e) {
@@ -262,6 +294,7 @@
         this.attachListeners();
         this.updatePlaybackRateDisplay();
         this.updateProgressBarDisplay();
+        this.hideProgressBarPseudoElements();
         this.startIntervals();
     };
 
@@ -489,6 +522,31 @@
                 : this.currentPlaybackRate.toFixed(1);
             this.playbackRateEl.textContent = display + '×';
         }
+    };
+
+    PlayerSync.prototype.hideProgressBarPseudoElements = function() {
+        if (!this.progressBar) {
+            return;
+        }
+        
+        // Apply inline styles directly to hide pseudo-elements
+        var style = document.createElement('style');
+        style.id = 'playersync-progress-bar-fix-' + this.instanceId;
+        style.textContent = 
+            '#' + this.instanceId + '-container .progress-bar::before, ' +
+            '#' + this.instanceId + '-container .progress-bar::after, ' +
+            '#' + this.instanceId + '-container input.progress-bar::before, ' +
+            '#' + this.instanceId + '-container input.progress-bar::after { ' +
+            '    display: none !important; ' +
+            '    visibility: hidden !important; ' +
+            '    opacity: 0 !important; ' +
+            '    content: none !important; ' +
+            '    height: 0 !important; ' +
+            '    width: 0 !important; ' +
+            '    background: none !important; ' +
+            '    position: absolute !important; ' +
+            '}';
+        document.head.appendChild(style);
     };
 
     PlayerSync.prototype.monitorEndTime = function() {
@@ -851,7 +909,7 @@
     // Export for debugging
     window.PlayerSync = {
         players: players,
-        version: '1.4'
+        version: '1.5'
     };
 
 })(window);

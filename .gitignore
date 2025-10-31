@@ -1,0 +1,10 @@
+# Google Cloud credentials
+*.json
+service-account-*.json
+
+# macOS
+.DS_Store
+
+# Deployment files
+DEPLOY.md
+upload.sh

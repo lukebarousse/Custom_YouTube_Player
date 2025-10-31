@@ -17,11 +17,13 @@ A self-contained, reusable YouTube video player that supports multiple instances
 
 ### 1. Include the Script
 
-Add the PlayerSync script to your page:
+Add the PlayerSync script to your page (host it on your preferred CDN or web server):
 
 ```html
 <script src="https://your-hosting.com/player-sync.js" async defer></script>
 ```
+
+**Note:** After deploying the script to your hosting (see Deployment section), replace `your-hosting.com` with your actual script URL.
 
 ### 2. Add Player Placeholders
 
@@ -32,8 +34,11 @@ Add `<div>` elements with the class `custom-yt-player` and configure via data at
      data-video-id="7mz73uXD9DA"
      data-start-time="1011"
      data-end-time="2041">
+    <p style="padding: 40px; text-align: center; background: #f0f0f0; border: 2px dashed #ccc; color: #666; font-family: monospace; margin: 0;">🎬 VIDEO PLAYER PLACEHOLDER<br/>Video: YOUR_VIDEO_ID<br/>Start: 1011s | End: 2041s</p>
 </div>
 ```
+
+**Note:** The placeholder content inside the div will be automatically replaced with the video player when the page loads. You can customize the placeholder text as needed for your Kajabi editor.
 
 ### 3. That's It!
 
@@ -45,51 +50,79 @@ PlayerSync will automatically:
 
 ## Files
 
-- **player-sync.js**: The main self-contained script (refactored and optimized)
+- **player-sync.js**: The main self-contained script (v1.4)
 - **test.html**: Local testing environment with multiple test cases
-- **instructions.md**: Detailed deployment guide for Google Cloud Platform
+- **upload.sh**: Upload script for Google Cloud Storage
+- **DEPLOY.md**: Deployment guide
 - **README.md**: This file
 
 ## Usage Examples
 
 ### Full Video Playback
 
+Play an entire video from start to finish:
+
 ```html
-<div class="custom-yt-player" data-video-id="YOUR_VIDEO_ID"></div>
+<div class="custom-yt-player" data-video-id="YOUR_VIDEO_ID">
+    <p style="padding: 40px; text-align: center; background: #f0f0f0; border: 2px dashed #ccc; color: #666; font-family: monospace; margin: 0;">🎬 VIDEO PLAYER<br/>Video: YOUR_VIDEO_ID</p>
+</div>
+
+<script src="https://your-hosting.com/player-sync.js" async defer></script>
 ```
 
 ### Play with Start Time Only
 
+Start playing from a specific time and continue to the end:
+
 ```html
 <div class="custom-yt-player" 
      data-video-id="YOUR_VIDEO_ID"
-     data-start-time="60"></div>
+     data-start-time="60">
+    <p style="padding: 40px; text-align: center; background: #f0f0f0; border: 2px dashed #ccc; color: #666; font-family: monospace; margin: 0;">🎬 VIDEO PLAYER<br/>Video: YOUR_VIDEO_ID | Starts: 60s</p>
+</div>
+
+<script src="https://your-hosting.com/player-sync.js" async defer></script>
 ```
 
 ### Play a Specific Segment
 
+Play only a specific portion of a video:
+
 ```html
 <div class="custom-yt-player" 
      data-video-id="YOUR_VIDEO_ID"
-     data-start-time="1011"
-     data-end-time="2041"></div>
+     data-start-time="60"
+     data-end-time="180">
+    <p style="padding: 40px; text-align: center; background: #f0f0f0; border: 2px dashed #ccc; color: #666; font-family: monospace; margin: 0;">🎬 VIDEO PLAYER<br/>Video: YOUR_VIDEO_ID<br/>Start: 60s | End: 180s</p>
+</div>
+
+<script src="https://your-hosting.com/player-sync.js" async defer></script>
 ```
 
-### Multiple Players
+### Multiple Players on One Page
+
+Add multiple players to the same page—they work independently:
 
 ```html
-<div class="custom-yt-player" 
-     data-video-id="VIDEO_1"
-     data-start-time="0"
-     data-end-time="60"></div>
+<!-- Video 1: Play full video -->
+<div class="custom-yt-player" data-video-id="VIDEO_ID_1">
+    <p style="padding: 40px; text-align: center; background: #f0f0f0; border: 2px dashed #ccc; color: #666; font-family: monospace; margin: 0;">🎬 VIDEO PLAYER 1<br/>Video: VIDEO_ID_1</p>
+</div>
 
-<div class="custom-yt-player" 
-     data-video-id="VIDEO_2"
-     data-start-time="300"
-     data-end-time="600"></div>
+<!-- Video 2: Play a segment -->
+<div class="custom-yt-player"
+     data-video-id="VIDEO_ID_2"
+     data-start-time="60"
+     data-end-time="180">
+    <p style="padding: 40px; text-align: center; background: #f0f0f0; border: 2px dashed #ccc; color: #666; font-family: monospace; margin: 0;">🎬 VIDEO PLAYER 2<br/>Video: VIDEO_ID_2 | 60s-180s</p>
+</div>
 
-<div class="custom-yt-player" data-video-id="VIDEO_3"></div>
+<!-- Video 3: Another full video -->
+<div class="custom-yt-player" data-video-id="VIDEO_ID_3">
+    <p style="padding: 40px; text-align: center; background: #f0f0f0; border: 2px dashed #ccc; color: #666; font-family: monospace; margin: 0;">🎬 VIDEO PLAYER 3<br/>Video: VIDEO_ID_3</p>
+</div>
 
+<!-- Load PlayerSync script once for all players -->
 <script src="https://your-hosting.com/player-sync.js" async defer></script>
 ```
 
@@ -116,7 +149,7 @@ Each player includes:
 - **Time display**: Current time and duration
 - **Playback speed**: 0.1× to 3.0× (increments of 0.1×)
 - **Fullscreen**: Toggle fullscreen mode
-- **Help Menu**: Information about controls, keyboard shortcuts, and captions
+- **Help Menu (ⓘ)**: Scrollable menu with keyboard shortcuts, video controls, subtitles, and audio track information
 
 ### Keyboard Shortcuts
 
@@ -166,17 +199,55 @@ This error occurs when opening files directly from your file system (file:// pro
 
 **Solution:** Always use a local web server when testing. See the "Local Testing" section above for instructions.
 
+### Video doesn't load
+
+1. Verify your YouTube video ID is correct
+2. Check that the video is publicly viewable
+3. Ensure the video allows embedding
+4. Check the browser console for error messages
+
+### Players not appearing
+
+1. Check that your placeholder `<div>` elements have the class `custom-yt-player`
+2. Verify that the data attributes are spelled correctly (`data-video-id`, etc.)
+3. Ensure the script URL is correct and accessible
+4. Check browser console for JavaScript errors
+
+### Invalid configuration error
+
+Make sure:
+- `data-start-time` is not negative
+- `data-end-time` is greater than `data-start-time` (if both are provided)
+
 ## Deployment
 
-See `instructions.md` for detailed instructions on deploying to Google Cloud Storage and using on platforms like Kajabi.
+Deploy the `player-sync.js` file to your preferred hosting (Google Cloud Storage, AWS S3, CDN, etc.).
 
-## Browser Support
+After deployment, update the script URL in your HTML to point to your hosted file.
 
-Tested and working on:
-- Chrome (latest)
-- Firefox (latest)
-- Safari (latest)
-- Edge (latest)
+## Advanced
+
+### Custom Styling
+
+Players use inline CSS for maximum compatibility. To customize appearance:
+
+```html
+<style>
+  .custom-yt-player [id*="-container"] {
+    max-width: 900px !important;
+    border: 2px solid #0066cc !important;
+  }
+</style>
+```
+
+### Debugging
+
+PlayerSync logs helpful messages to the browser console. Open developer tools (F12) and look for messages starting with "PlayerSync:".
+
+Access player instances programmatically:
+```javascript
+console.log(window.PlayerSync.players);
+```
 
 ## Notes
 
@@ -185,15 +256,3 @@ Tested and working on:
 - Scoped event handlers prevent conflicts between players
 - Console logging for debugging
 - Graceful error handling
-
-## Version
-
-**v1.4** - Latest release
-- Added help menu with detailed controls information
-- Removed settings button
-- Added scrollable help menu
-- Updated speed increments to 0.1× steps
-- Expanded speed range to 0.1× - 3.0×
-- Improved keyboard shortcuts documentation
-- Better UI organization
-
