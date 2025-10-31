@@ -87,16 +87,16 @@
 
     <div class="test-section">
         <h2>Test 3: Different Video with Start Time Only</h2>
-        <p>This player starts at 5:00 (300s) and plays to the end of the video.</p>
+        <p>This player starts at 0:05 (5s) and plays to the end of the video.</p>
         <div class="code-block">
 &lt;div class="custom-yt-player"<br>
      data-video-id="jNQXAC9IVRw"<br>
-     data-start-time="300"&gt;<br>
+     data-start-time="5"&gt;<br>
 &lt;/div&gt;
         </div>
         <div class="custom-yt-player"
              data-video-id="jNQXAC9IVRw"
-             data-start-time="300">
+             data-start-time="5">
         </div>
     </div>
 
@@ -175,10 +175,11 @@
             <li>✅ Test 12: Help menu (ⓘ) opens and displays CC and audio track information</li>
             <li>✅ Test 13: Fullscreen button works</li>
             <li>✅ Test 14: Players with only start time work correctly</li>
+            <li>✅ Test 15: Keyboard shortcuts work (Spacebar, Left/Right arrows, C for captions)</li>
         </ul>
     </div>
 
-    <script src="player-sync.js" defer></script>
+    <script src="player-sync.js?v=2.4" defer></script>
 
     <script>
         // Log player status to console for debugging
