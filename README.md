@@ -50,7 +50,7 @@ PlayerSync will automatically:
 
 ## Files
 
-- **player-sync.js**: The main self-contained script (v1.6)
+- **player-sync.js**: The main self-contained script (v2.5)
 - **test.html**: Local testing environment with multiple test cases
 - **upload.sh**: Upload script for Google Cloud Storage
 - **DEPLOY.md**: Deployment guide
@@ -147,7 +147,7 @@ Each player includes:
 - **Forward 10 seconds**: Skip ahead by 10 seconds
 - **Progress bar**: Drag to seek
 - **Time display**: Current time and duration
-- **Playback speed**: 0.1× to 3.0× (increments of 0.1×)
+- **Playback speed**: 0.1× to 3.0× (increments of 0.1×), remembered in the browser so it carries over to the next lesson
 - **Fullscreen**: Toggle fullscreen mode
 - **Help Menu (ⓘ)**: Scrollable menu with keyboard shortcuts, video controls, subtitles, and audio track information
 

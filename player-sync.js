@@ -1,7 +1,7 @@
 /*
  * PlayerSync - A self-contained, reusable YouTube video player
  * Supports multiple instances per page with segment playback
- * Version: 2.4 (refactored and streamlined)
+ * Version: 2.5 (remembers playback speed across lessons)
  */
 
 (function(window) {
@@ -15,6 +15,25 @@
     var END_TIME_CHECK_INTERVAL = 300;
     var players = [];
     var apiReady = false;
+    var RATE_KEY = 'playerSync.playbackRate';
+
+    // The chosen speed is kept per browser, so it follows the student from
+    // lesson to lesson. Storage can be blocked (private mode), so never throw.
+    function loadSavedRate() {
+        try {
+            var rate = parseFloat(window.localStorage.getItem(RATE_KEY));
+            if (isNaN(rate)) return null;
+            return Math.round(Math.max(0.1, Math.min(3.0, rate)) * 10) / 10;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function saveRate(rate) {
+        try {
+            window.localStorage.setItem(RATE_KEY, String(rate));
+        } catch (e) {}
+    }
 
     function PlayerSync(placeholder, config) {
         this.placeholder = placeholder;
@@ -22,7 +41,7 @@
         this.startTime = config.startTime || 0;
         this.endTime = config.endTime || null;
         this.player = null;
-        this.currentPlaybackRate = 1.0;
+        this.currentPlaybackRate = loadSavedRate() || 1.0;
         this.progressBarInterval = null;
         this.endTimeMonitorInterval = null;
         this.playerReady = false;
@@ -153,6 +172,7 @@
         if (this.errorDiv) this.errorDiv.style.display = 'none';
         this.updateDurationDisplay();
         this.attachListeners();
+        this.applyPlaybackRate();
         this.updatePlaybackRateDisplay();
         this.updateProgressBarDisplay();
         this.hideProgressBarPseudoElements();
@@ -177,6 +197,8 @@
         if (!this.playerReady && e.data !== window.YT.PlayerState.CUED) return;
         if (this.playPauseBtn) {
             if (e.data === window.YT.PlayerState.PLAYING) {
+                // YouTube can drop a rate set before playback starts; reapply it.
+                this.applyPlaybackRate();
                 this.playPauseBtn.textContent = '⏸';
                 this.startIntervals();
                 this.monitorEndTime();
@@ -266,11 +288,20 @@
 
     PlayerSync.prototype.changePlaybackRate = function(change) {
         if (!this.playerReady || !this.player.setPlaybackRate || !this.player.getPlaybackRate) return;
-        var currentRate = this.player.getPlaybackRate();
-        var newRate = Math.max(0.1, Math.min(3.0, currentRate + change));
+        // Build on our own value: getPlaybackRate lags behind quick clicks.
+        var currentRate = this.currentPlaybackRate;
+        var newRate = Math.round(Math.max(0.1, Math.min(3.0, currentRate + change)) * 10) / 10;
         this.player.setPlaybackRate(newRate);
         this.currentPlaybackRate = newRate;
+        saveRate(newRate);
         this.updatePlaybackRateDisplay();
+    };
+
+    PlayerSync.prototype.applyPlaybackRate = function() {
+        if (!this.playerReady || !this.player.setPlaybackRate || !this.player.getPlaybackRate) return;
+        if (this.player.getPlaybackRate() !== this.currentPlaybackRate) {
+            this.player.setPlaybackRate(this.currentPlaybackRate);
+        }
     };
 
     PlayerSync.prototype.updatePlaybackRateDisplay = function() {
