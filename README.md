@@ -6,7 +6,7 @@ A self-contained, reusable YouTube video player that supports multiple instances
 
 - 🎬 Multiple player instances on a single page
 - ⏱️ Segment playback with custom start and end times
-- 🎮 Custom controls (play/pause, seek, speed, fullscreen, help menu)
+- 🎮 Custom controls (play/pause, seek, volume, captions, speed menu, fullscreen with controls, help menu)
 - 📱 Responsive design with inline styling
 - 🚀 Zero external dependencies (except YouTube IFrame API)
 - 🔧 Self-contained: just load and use
@@ -50,7 +50,7 @@ PlayerSync will automatically:
 
 ## Files
 
-- **player-sync.js**: The main self-contained script (v2.5)
+- **player-sync.js**: The main self-contained script (v3.0)
 - **test.html**: Local testing environment with multiple test cases
 - **upload.sh**: Upload script for Google Cloud Storage
 - **DEPLOY.md**: Deployment guide

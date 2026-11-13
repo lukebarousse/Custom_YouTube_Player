@@ -1,7 +1,7 @@
 /*
  * PlayerSync - A self-contained, reusable YouTube video player
  * Supports multiple instances per page with segment playback
- * Version: 2.5 (remembers playback speed across lessons)
+ * Version: 3.0 (controls stay in fullscreen; volume, captions and speed menu)
  */
 
 (function(window) {
@@ -35,6 +35,33 @@
         } catch (e) {}
     }
 
+    // Captions follow the student across lessons too. Off by default.
+    var CC_KEY = 'playerSync.captions';
+
+    function loadSavedCaptions() {
+        try { return window.localStorage.getItem(CC_KEY) === 'on'; } catch (e) { return false; }
+    }
+
+    function saveCaptions(on) {
+        try { window.localStorage.setItem(CC_KEY, on ? 'on' : 'off'); } catch (e) {}
+    }
+
+
+    // Line icons in the bar's color (currentColor), so they match the other controls.
+    function svg(body) {
+        return '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: block;">' + body + '</svg>';
+    }
+    var SPEAKER = '<path d="M4 9.5v5h3.5l4.5 4v-13l-4.5 4H4z" fill="currentColor" stroke="none"/>';
+    var ICONS = {
+        volHigh: svg(SPEAKER + '<path d="M15.5 9a4 4 0 0 1 0 6"/><path d="M18 6.5a7.5 7.5 0 0 1 0 11"/>'),
+        volLow: svg(SPEAKER + '<path d="M15.5 9a4 4 0 0 1 0 6"/>'),
+        volMuted: svg(SPEAKER + '<path d="M16 9.5l5 5M21 9.5l-5 5"/>'),
+        // Expand: arrows out to the top-left and bottom-right corners.
+        fsEnter: svg('<path d="M10 10L4.5 4.5M4.5 9.5v-5h5"/><path d="M14 14l5.5 5.5M19.5 14.5v5h-5"/>'),
+        // Exit: the same arrows pointing back in.
+        fsExit: svg('<path d="M4.5 4.5L10 10M5 10h5V5"/><path d="M19.5 19.5L14 14M19 14h-5v5"/>')
+    };
+
     function PlayerSync(placeholder, config) {
         this.placeholder = placeholder;
         this.videoId = config.videoId;
@@ -42,6 +69,8 @@
         this.endTime = config.endTime || null;
         this.player = null;
         this.currentPlaybackRate = loadSavedRate() || 1.0;
+        this.captionsOn = loadSavedCaptions();
+        this.captionsApplied = false;
         this.progressBarInterval = null;
         this.endTimeMonitorInterval = null;
         this.playerReady = false;
@@ -90,12 +119,13 @@
                     '<span class="time-display" style="font-size: 0.9em; margin: 0 5px; font-family: monospace; white-space: nowrap; color: #ccc; min-width: 80px; text-align: center;">',
                         '<span class="current-time">0:00</span> / <span class="duration">0:00</span>',
                     '</span>',
-                    '<span class="speed-controls" style="display: inline-flex; align-items: center; background-color: rgba(255,255,255,0.05); border-radius: 4px; padding: 0 3px; margin: 0 5px;">',
-                        '<button class="slower" title="Slow down" style="background: none; border: none; color: #eee; font-size: 1.2em; cursor: pointer; padding: 5px; margin: 0 1px; line-height: 1;">🐢</button>',
-                        '<span class="playback-rate" title="Playback speed" style="font-size: 0.85em; padding: 0 5px; min-width: 40px; text-align: center; color: #eee;">1.0×</span>',
-                        '<button class="faster" title="Speed up" style="background: none; border: none; color: #eee; font-size: 1.2em; cursor: pointer; padding: 5px; margin: 0 1px; line-height: 1;">🐇</button>',
+                    '<span class="volume-controls" style="display: inline-flex; align-items: center; margin: 0 2px;">',
+                        '<button class="volume-button" title="Mute (M)" style="background: none; border: none; color: #eee; cursor: pointer; padding: 5px 6px; margin: 0; line-height: 1;">' + ICONS.volHigh + '</button>',
+                        '<input class="volume-slider" type="range" min="0" max="100" value="100" title="Volume" style="width: 0; opacity: 0; margin: 0; padding: 0; cursor: pointer; height: 6px; vertical-align: middle; transition: width 0.15s, opacity 0.15s, margin 0.15s;" />',
                     '</span>',
-                    '<button class="fullscreen-button" title="Toggle fullscreen" style="background: none; border: none; color: #eee; font-size: 1.4em; cursor: pointer; padding: 5px 8px; margin: 0 4px; line-height: 1;">⛶</button>',
+                    '<button class="cc-button" title="Captions (C)" style="background: none; border: 1.5px solid #eee; border-radius: 3px; color: #eee; font-size: 0.75em; font-weight: bold; cursor: pointer; padding: 2px 4px; margin: 0 6px; line-height: 1; font-family: sans-serif;">CC</button>',
+                    '<button class="playback-rate" title="Playback speed" style="background: rgba(255,255,255,0.08); border: none; border-radius: 4px; color: #eee; font-size: 0.85em; cursor: pointer; padding: 5px 6px; margin: 0 4px; line-height: 1; min-width: 44px; text-align: center;">1×</button>',
+                    '<button class="fullscreen-button" title="Fullscreen (F)" style="background: none; border: none; color: #eee; cursor: pointer; padding: 5px 8px; margin: 0 4px; line-height: 1;">' + ICONS.fsEnter + '</button>',
                     '<button class="info-button" title="Help" style="background: none; border: none; color: #eee; font-size: 1.2em; cursor: pointer; padding: 5px 8px; margin: 0 4px; line-height: 1; font-weight: bold;">ⓘ</button>',
                 '</div>',
                 '<div id="' + id + '-error" style="color: red; padding: 10px; text-align: center; display: none; background: #333;"></div>',
@@ -114,14 +144,30 @@
         this.progressBar = this.container.querySelector('.progress-bar');
         this.currentTimeEl = this.container.querySelector('.current-time');
         this.durationEl = this.container.querySelector('.duration');
-        this.slowerBtn = this.container.querySelector('.slower');
-        this.fasterBtn = this.container.querySelector('.faster');
         this.playbackRateEl = this.container.querySelector('.playback-rate');
+        this.volumeControls = this.container.querySelector('.volume-controls');
+        this.volumeBtn = this.container.querySelector('.volume-button');
+        this.volumeSlider = this.container.querySelector('.volume-slider');
+        this.ccBtn = this.container.querySelector('.cc-button');
         this.fullscreenBtn = this.container.querySelector('.fullscreen-button');
         this.infoButton = this.container.querySelector('.info-button');
         this.errorDiv = document.getElementById(id + '-error');
         this.controlsDiv = this.container.querySelector('.custom-controls');
+        this.wrapper = this.container.querySelector('.player-wrapper');
         this.helpMenuOpen = false;
+        this.speedMenu = null;
+        this.muted = false;
+        this.volume = 100;
+        // Kept so fullscreen can be undone exactly.
+        this.containerCss = this.container.style.cssText;
+        this.wrapperCss = this.wrapper ? this.wrapper.style.cssText : '';
+
+        // Phones and tablets have hardware volume buttons: save the space.
+        try {
+            if (this.volumeControls && window.matchMedia && window.matchMedia('(hover: none)').matches) {
+                this.volumeControls.style.display = 'none';
+            }
+        } catch (e) {}
 
         if (!this.playerDiv || !this.playPauseBtn || !this.progressBar || !this.currentTimeEl || !this.durationEl || !this.controlsDiv) {
             console.error('PlayerSync: Essential elements not found');
@@ -176,6 +222,12 @@
         this.updatePlaybackRateDisplay();
         this.updateProgressBarDisplay();
         this.hideProgressBarPseudoElements();
+        try {
+            this.muted = this.player.isMuted();
+            this.volume = this.player.getVolume();
+        } catch (e) {}
+        this.updateVolumeDisplay();
+        this.updateCaptionsDisplay();
         this.startIntervals();
     };
 
@@ -199,6 +251,15 @@
             if (e.data === window.YT.PlayerState.PLAYING) {
                 // YouTube can drop a rate set before playback starts; reapply it.
                 this.applyPlaybackRate();
+                // The captions module only loads once playback starts, and it
+                // may switch on from the viewer's YouTube settings. Set our
+                // choice on the first play, then once more after it settles.
+                if (!this.captionsApplied) {
+                    this.captionsApplied = true;
+                    var self = this;
+                    this.applyCaptions();
+                    setTimeout(function() { self.applyCaptions(); }, 1000);
+                }
                 this.playPauseBtn.textContent = '⏸';
                 this.startIntervals();
                 this.monitorEndTime();
@@ -219,10 +280,32 @@
         if (this.playPauseBtn) this.playPauseBtn.addEventListener('click', () => this.togglePlayPause());
         if (this.back10Btn) this.back10Btn.addEventListener('click', () => this.seek(-10));
         if (this.forward10Btn) this.forward10Btn.addEventListener('click', () => this.seek(10));
-        if (this.slowerBtn) this.slowerBtn.addEventListener('click', () => this.changePlaybackRate(-0.1));
-        if (this.fasterBtn) this.fasterBtn.addEventListener('click', () => this.changePlaybackRate(0.1));
+        if (this.playbackRateEl) this.playbackRateEl.addEventListener('click', () => this.toggleSpeedMenu());
         if (this.infoButton) this.infoButton.addEventListener('click', () => this.toggleHelpMenu());
         if (this.fullscreenBtn) this.fullscreenBtn.addEventListener('click', () => this.toggleFullscreen());
+        if (this.ccBtn) this.ccBtn.addEventListener('click', () => this.toggleCaptions());
+        if (this.volumeBtn) this.volumeBtn.addEventListener('click', () => this.toggleMute());
+        if (this.volumeSlider) {
+            this.volumeSlider.addEventListener('input', (e) => this.setVolume(parseInt(e.target.value, 10)));
+        }
+        if (this.volumeControls) {
+            var open = function() { self.showVolumeSlider(true); };
+            var close = function() { if (!self.volumeControls.contains(document.activeElement)) self.showVolumeSlider(false); };
+            this.volumeControls.addEventListener('mouseenter', open);
+            this.volumeControls.addEventListener('mouseleave', close);
+            this.volumeControls.addEventListener('focusin', open);
+            this.volumeControls.addEventListener('focusout', function() { setTimeout(close, 0); });
+        }
+        // A clicked button keeps focus, and a later Space would click it again
+        // instead of pausing. Hand focus back after each click.
+        var buttons = this.controlsDiv.querySelectorAll('button');
+        for (var b = 0; b < buttons.length; b++) {
+            buttons[b].addEventListener('mouseup', function() { this.blur(); });
+        }
+        var onFsChange = function() { self.onFullscreenChange(); };
+        document.addEventListener('fullscreenchange', onFsChange);
+        document.addEventListener('webkitfullscreenchange', onFsChange);
+        document.addEventListener('keydown', function(e) { self.onKeyDown(e); });
         if (this.progressBar) {
             this.progressBar.addEventListener('input', (e) => this.handleProgressBarInput(e));
             this.progressBar.addEventListener('mousedown', () => this.clearIntervals());
@@ -233,6 +316,9 @@
         document.addEventListener('click', function(e) {
             if (self.helpMenuOpen && self.helpMenu && !self.helpMenu.contains(e.target) && !self.infoButton.contains(e.target)) {
                 self.closeHelpMenu();
+            }
+            if (self.speedMenu && !self.speedMenu.contains(e.target) && !self.playbackRateEl.contains(e.target)) {
+                self.closeSpeedMenu();
             }
         });
     };
@@ -297,6 +383,155 @@
         this.updatePlaybackRateDisplay();
     };
 
+    PlayerSync.prototype.setPlaybackRate = function(rate) {
+        this.changePlaybackRate(rate - this.currentPlaybackRate);
+    };
+
+    // Speed lives in one button: a small menu with presets plus the old
+    // 0.1 steps, so the bar keeps its width with volume and CC added.
+    PlayerSync.prototype.toggleSpeedMenu = function() {
+        if (this.speedMenu) { this.closeSpeedMenu(); return; }
+        this.closeHelpMenu();
+        var self = this;
+        var menu = document.createElement('div');
+        menu.className = 'speed-menu';
+        menu.style.cssText = 'position: absolute; bottom: 50px; right: 50px; background-color: rgba(28,28,28,0.97); border: 1px solid #555; border-radius: 4px; padding: 10px; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.5); color: #eee; font-family: sans-serif; font-size: 14px;';
+        var btn = 'background: rgba(255,255,255,0.08); border: none; border-radius: 3px; color: #eee; cursor: pointer; padding: 5px 8px; margin: 2px; font-size: 13px;';
+        var presets = [0.75, 1, 1.25, 1.5, 1.75, 2];
+        var html = '<div style="font-weight: bold; color: #3ea6ff; margin-bottom: 8px;">Speed</div>';
+        html += '<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">';
+        html += '<button data-step="-0.1" title="Slower" style="' + btn + '">−</button>';
+        html += '<span class="speed-now" style="min-width: 48px; text-align: center;"></span>';
+        html += '<button data-step="0.1" title="Faster" style="' + btn + '">+</button></div>';
+        html += '<div style="display: grid; grid-template-columns: repeat(3, 1fr);">';
+        for (var i = 0; i < presets.length; i++) {
+            html += '<button data-rate="' + presets[i] + '" style="' + btn + '">' + presets[i] + '×</button>';
+        }
+        html += '</div>';
+        menu.innerHTML = html;
+        menu.addEventListener('click', function(e) {
+            var t = e.target.closest('button');
+            if (!t) return;
+            if (t.getAttribute('data-step')) self.changePlaybackRate(parseFloat(t.getAttribute('data-step')));
+            if (t.getAttribute('data-rate')) self.setPlaybackRate(parseFloat(t.getAttribute('data-rate')));
+            self.updateSpeedMenu();
+        });
+        this.container.style.position = 'relative';
+        this.container.appendChild(menu);
+        this.speedMenu = menu;
+        this.updateSpeedMenu();
+    };
+
+    PlayerSync.prototype.updateSpeedMenu = function() {
+        if (!this.speedMenu) return;
+        var now = this.speedMenu.querySelector('.speed-now');
+        if (now && this.playbackRateEl) now.textContent = this.playbackRateEl.textContent;
+        var btns = this.speedMenu.querySelectorAll('button[data-rate]');
+        for (var i = 0; i < btns.length; i++) {
+            var on = parseFloat(btns[i].getAttribute('data-rate')) === this.currentPlaybackRate;
+            btns[i].style.background = on ? '#3ea6ff' : 'rgba(255,255,255,0.08)';
+            btns[i].style.color = on ? '#111' : '#eee';
+        }
+    };
+
+    PlayerSync.prototype.closeSpeedMenu = function() {
+        if (this.speedMenu) this.speedMenu.remove();
+        this.speedMenu = null;
+    };
+
+    // ---- Volume
+    PlayerSync.prototype.toggleMute = function() {
+        if (!this.playerReady || !this.player.mute) return;
+        if (this.muted || this.volume === 0) {
+            this.player.unMute();
+            if (this.volume === 0) { this.volume = 50; this.player.setVolume(50); }
+            this.muted = false;
+        } else {
+            this.player.mute();
+            this.muted = true;
+        }
+        this.updateVolumeDisplay();
+    };
+
+    PlayerSync.prototype.setVolume = function(v) {
+        if (!this.playerReady || !this.player.setVolume) return;
+        v = Math.max(0, Math.min(100, v || 0));
+        this.player.setVolume(v);
+        this.volume = v;
+        if (v > 0 && this.muted) { this.player.unMute(); this.muted = false; }
+        this.updateVolumeDisplay();
+    };
+
+    PlayerSync.prototype.updateVolumeDisplay = function() {
+        var silent = this.muted || this.volume === 0;
+        if (this.volumeBtn) {
+            this.volumeBtn.innerHTML = silent ? ICONS.volMuted : (this.volume < 50 ? ICONS.volLow : ICONS.volHigh);
+            this.volumeBtn.title = silent ? 'Unmute (M)' : 'Mute (M)';
+        }
+        if (this.volumeSlider) this.volumeSlider.value = silent ? 0 : this.volume;
+    };
+
+    PlayerSync.prototype.showVolumeSlider = function(show) {
+        if (!this.volumeSlider) return;
+        this.volumeSlider.style.width = show ? '70px' : '0';
+        this.volumeSlider.style.opacity = show ? '1' : '0';
+        this.volumeSlider.style.margin = show ? '0 6px 0 2px' : '0';
+    };
+
+    // ---- Captions (English). The player keeps its own on/off state: YouTube's
+    // getOption('captions', 'track') still reports the track after captions are
+    // turned off (tested 2026-11-13), so it cannot be read back.
+    PlayerSync.prototype.applyCaptions = function() {
+        if (!this.playerReady || !this.player.loadModule) return;
+        var self = this;
+        if (this.captionsOn) {
+            this.player.loadModule('captions');
+            var turnOn = function() { try { self.player.setOption('captions', 'track', { languageCode: 'en' }); } catch (e) {} };
+            turnOn();
+            setTimeout(turnOn, 400);
+        } else {
+            try { this.player.unloadModule('captions'); } catch (e) {}
+        }
+    };
+
+    PlayerSync.prototype.toggleCaptions = function() {
+        if (!this.playerReady) return;
+        this.captionsOn = !this.captionsOn;
+        saveCaptions(this.captionsOn);
+        this.applyCaptions();
+        this.updateCaptionsDisplay();
+    };
+
+    PlayerSync.prototype.updateCaptionsDisplay = function() {
+        if (!this.ccBtn) return;
+        this.ccBtn.style.background = this.captionsOn ? '#eee' : 'none';
+        this.ccBtn.style.color = this.captionsOn ? '#111' : '#eee';
+        this.ccBtn.title = this.captionsOn ? 'Captions off (C)' : 'Captions on (C)';
+    };
+
+    // ---- Keyboard. Inside the video frame YouTube handles keys itself; these
+    // cover the rest of the player (the bar, and fullscreen) so the same keys work.
+    PlayerSync.prototype.onKeyDown = function(e) {
+        if (!this.playerReady || e.ctrlKey || e.metaKey || e.altKey) return;
+        var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+        var inPlayer = fsEl === this.container || this.container.contains(document.activeElement);
+        if (!inPlayer) return;
+        var tag = (e.target && e.target.tagName) || '';
+        if (tag === 'INPUT' && e.target.type !== 'range') return;
+        if (e.target === this.volumeSlider) return;
+        // A button reached with Tab keeps its own Space and Enter.
+        if (tag === 'BUTTON' && (e.key === ' ' || e.key === 'Enter')) return;
+        var k = e.key;
+        if (k === ' ' || k === 'k' || k === 'K') this.togglePlayPause();
+        else if (k === 'ArrowLeft') this.seek(-5);
+        else if (k === 'ArrowRight') this.seek(5);
+        else if (k === 'c' || k === 'C') this.toggleCaptions();
+        else if (k === 'm' || k === 'M') this.toggleMute();
+        else if (k === 'f' || k === 'F') this.toggleFullscreen();
+        else return;
+        e.preventDefault();
+    };
+
     PlayerSync.prototype.applyPlaybackRate = function() {
         if (!this.playerReady || !this.player.setPlaybackRate || !this.player.getPlaybackRate) return;
         if (this.player.getPlaybackRate() !== this.currentPlaybackRate) {
@@ -358,15 +593,40 @@
         return minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
     };
 
+    // Fullscreen takes the whole player, video and control bar together.
+    // Until v3.0 only the video frame went fullscreen, and since the frame has
+    // YouTube's own controls turned off, fullscreen had no controls at all.
     PlayerSync.prototype.toggleFullscreen = function() {
-        var iframe = this.player ? this.player.getIframe() : null;
-        if (!iframe) return;
+        var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
         try {
-            if (iframe.requestFullscreen) iframe.requestFullscreen();
-            else if (iframe.mozRequestFullScreen) iframe.mozRequestFullScreen();
-            else if (iframe.webkitRequestFullscreen) iframe.webkitRequestFullscreen();
-            else if (iframe.msRequestFullscreen) iframe.msRequestFullscreen();
+            if (fsEl) {
+                if (document.exitFullscreen) document.exitFullscreen();
+                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+                return;
+            }
+            var c = this.container;
+            if (c.requestFullscreen) { c.requestFullscreen(); return; }
+            if (c.webkitRequestFullscreen) { c.webkitRequestFullscreen(); return; }
+            // iPhone Safari only allows the video itself to go fullscreen.
+            var iframe = this.player ? this.player.getIframe() : null;
+            if (iframe && iframe.webkitEnterFullscreen) iframe.webkitEnterFullscreen();
         } catch (e) { console.error('Error requesting fullscreen:', e); }
+    };
+
+    PlayerSync.prototype.onFullscreenChange = function() {
+        var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+        var isFs = fsEl === this.container;
+        if (isFs) {
+            this.container.style.cssText = this.containerCss + '; max-width: none; width: 100%; height: 100%; margin: 0; border: none; border-radius: 0; display: flex; flex-direction: column;';
+            if (this.wrapper) this.wrapper.style.cssText = this.wrapperCss + '; flex: 1 1 auto; height: auto; padding-bottom: 0;';
+        } else {
+            this.container.style.cssText = this.containerCss;
+            if (this.wrapper) this.wrapper.style.cssText = this.wrapperCss;
+        }
+        if (this.fullscreenBtn) {
+            this.fullscreenBtn.title = isFs ? 'Exit fullscreen (F)' : 'Fullscreen (F)';
+            this.fullscreenBtn.innerHTML = isFs ? ICONS.fsExit : ICONS.fsEnter;
+        }
     };
 
     PlayerSync.prototype.clearIntervals = function() {
@@ -416,9 +676,10 @@
         menu.style.cssText = css;
         var html = '';
         html += '<div style="font-size: 15px; font-weight: bold; margin-bottom: 12px; padding-bottom: 8px; color: #3ea6ff;">Info</div>';
-        html += '<div style="border-top: 1px solid #555; padding-top: 15px;"><div style="font-weight: bold; color: #3ea6ff; margin-bottom: 6px;">Keyboard Shortcuts:</div><div style="color: #ccc;">First, click anywhere on the video to select it. Then, you can use the following keys:</div><ul style="color: #ccc; margin-top: 8px; padding-left: 20px;"><li><span style="background-color: #555; padding: 2px 6px; border-radius: 3px; font-family: monospace;">Spacebar</span>: Play or Pause the video.</li><li style="margin-top: 5px;"><span style="background-color: #555; padding: 2px 6px; border-radius: 3px; font-family: monospace;">←</span> / <span style="background-color: #555; padding: 2px 6px; border-radius: 3px; font-family: monospace;">→</span>: Go backward or forward 5 seconds.</li><li style="margin-top: 5px;"><span style="background-color: #555; padding: 2px 6px; border-radius: 3px; font-family: monospace;">C</span>: Toggle English captions on or off.</li></ul></div>';
-        html += '<div style="border-top: 1px solid #555; padding-top: 15px;"><div style="font-weight: bold; color: #3ea6ff; margin-bottom: 6px;">Video Controls:</div><div style="color: #ccc;">Use the controls below the video to play, pause, skip forward or backward, adjust speed, and toggle fullscreen:</div><ul style="color: #ccc; margin-top: 8px; padding-left: 20px;"><li><strong>▶️</strong>: Play or pause the video.</li><li style="margin-top: 5px;"><strong>⏮</strong> / <strong>⏭</strong>: Skip backward or forward 10 seconds.</li><li style="margin-top: 5px;"><strong>🐢</strong> / <strong>🐇</strong>: Decrease or increase playback speed.</li><li style="margin-top: 5px;"><strong>⛶</strong>: Enter or exit fullscreen mode.</li></ul></div>';
-        html += '<div style="margin-bottom: 15px; border-top: 1px solid #555; padding-top: 15px;"><div style="font-weight: bold; color: #3ea6ff; margin-bottom: 6px;">Subtitles / Closed Captioning (English):</div><div style="color: #ccc;">To turn English captions on or off, first click the video area, then press the <span style="background-color: #555; padding: 2px 6px; border-radius: 3px; font-family: monospace;">C</span> key on your keyboard. For other languages, please view the video on YouTube.com.</div></div>';
+        var key = function(k) { return '<span style="background-color: #555; padding: 2px 6px; border-radius: 3px; font-family: monospace;">' + k + '</span>'; };
+        html += '<div style="border-top: 1px solid #555; padding-top: 15px;"><div style="font-weight: bold; color: #3ea6ff; margin-bottom: 6px;">Video Controls:</div><ul style="color: #ccc; margin-top: 8px; padding-left: 20px;"><li><strong>▶</strong>: Play or pause the video.</li><li style="margin-top: 5px;"><strong>⏮</strong> / <strong>⏭</strong>: Skip backward or forward 10 seconds.</li><li style="margin-top: 5px;"><span style="display: inline-block; vertical-align: middle;">' + ICONS.volHigh + '</span>: Mute or unmute. Hover over it for the volume slider.</li><li style="margin-top: 5px;"><strong>CC</strong>: Turn English captions on or off. Your choice is remembered across lessons.</li><li style="margin-top: 5px;"><strong>1×</strong>: Choose the playback speed. Your speed is remembered across lessons.</li><li style="margin-top: 5px;"><span style="display: inline-block; vertical-align: middle;">' + ICONS.fsEnter + '</span>: Enter or exit fullscreen. The controls stay with you in fullscreen.</li></ul></div>';
+        html += '<div style="border-top: 1px solid #555; padding-top: 15px;"><div style="font-weight: bold; color: #3ea6ff; margin-bottom: 6px;">Keyboard Shortcuts:</div><div style="color: #ccc;">Click the video first, then:</div><ul style="color: #ccc; margin-top: 8px; padding-left: 20px;"><li>' + key('Spacebar') + ': Play or pause.</li><li style="margin-top: 5px;">' + key('←') + ' / ' + key('→') + ': Back or forward 5 seconds.</li><li style="margin-top: 5px;">' + key('C') + ': Captions on or off.</li><li style="margin-top: 5px;">' + key('M') + ': Mute or unmute.</li><li style="margin-top: 5px;">' + key('F') + ': Fullscreen.</li></ul></div>';
+        html += '<div style="margin-bottom: 15px; border-top: 1px solid #555; padding-top: 15px;"><div style="font-weight: bold; color: #3ea6ff; margin-bottom: 6px;">Captions in other languages:</div><div style="color: #ccc;">The CC button shows English captions. For other languages, please view the video on YouTube.com.</div></div>';
         html += '<div style="margin-bottom: 15px; border-top: 1px solid #555; padding-top: 15px;"><div style="font-weight: bold; color: #3ea6ff; margin-bottom: 6px;">Audio Tracks (English / Hindi):</div><div style="color: #ccc;">This video is available in both English and Hindi. To switch languages, please open the video on YouTube.com, change the audio track there, and then reload this page to apply your choice.</div></div>';
         menu.innerHTML = html;
         this.container.style.position = 'relative';
@@ -480,6 +741,6 @@
         initializePlayers();
     }
 
-    window.PlayerSync = { players: players, version: '2.4' };
+    window.PlayerSync = { players: players, version: '3.0' };
 
 })(window);
