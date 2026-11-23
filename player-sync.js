@@ -1,7 +1,7 @@
 /*
  * PlayerSync - A self-contained, reusable YouTube video player
  * Supports multiple instances per page with segment playback
- * Version: 3.1 (expand button works on iPhone: CSS fullscreen where the browser has none)
+ * Version: 3.2 (iPhone: expand button works, icons instead of emoji, two-row bar on phones)
  */
 
 (function(window) {
@@ -59,7 +59,12 @@
         // Expand: arrows out to the top-left and bottom-right corners.
         fsEnter: svg('<path d="M10 10L4.5 4.5M4.5 9.5v-5h5"/><path d="M14 14l5.5 5.5M19.5 14.5v5h-5"/>'),
         // Exit: the same arrows pointing back in.
-        fsExit: svg('<path d="M4.5 4.5L10 10M5 10h5V5"/><path d="M19.5 19.5L14 14M19 14h-5v5"/>')
+        fsExit: svg('<path d="M4.5 4.5L10 10M5 10h5V5"/><path d="M19.5 19.5L14 14M19 14h-5v5"/>'),
+        // v3.2: these were the characters ▶ ⏸ ⏮ ⏭, which iPhone draws as emoji.
+        play: svg('<path d="M7.5 4.5v15l12-7.5z" fill="currentColor" stroke="none"/>'),
+        pause: svg('<rect x="6" y="4.5" width="4" height="15" rx="1" fill="currentColor" stroke="none"/><rect x="14" y="4.5" width="4" height="15" rx="1" fill="currentColor" stroke="none"/>'),
+        back10: svg('<path d="M4 12a8 8 0 1 0 2.5-5.8"/><path d="M6.5 2.5v4h4"/><text x="12" y="15.5" text-anchor="middle" font-size="8.5" font-weight="bold" font-family="sans-serif" fill="currentColor" stroke="none">10</text>'),
+        fwd10: svg('<path d="M20 12a8 8 0 1 1-2.5-5.8"/><path d="M17.5 2.5v4h-4"/><text x="12" y="15.5" text-anchor="middle" font-size="8.5" font-weight="bold" font-family="sans-serif" fill="currentColor" stroke="none">10</text>')
     };
 
     function PlayerSync(placeholder, config) {
@@ -112,13 +117,15 @@
                     '</div>',
                 '</div>',
                 '<div class="custom-controls" style="display: flex; align-items: center; padding: 8px 10px; background-color: #282828; color: #fff; width: 100%; box-sizing: border-box; flex-wrap: wrap; position: relative; z-index: 3;">',
-                    '<button class="play-pause" title="Play/Pause" style="background: none; border: none; color: #eee; font-size: 1.4em; cursor: pointer; padding: 5px 0; margin: 0 4px; line-height: 1; width: 35px; text-align: center;">▶</button>',
-                    '<button class="back10" title="Back 10 seconds" style="background: none; border: none; color: #eee; font-size: 1.4em; cursor: pointer; padding: 5px 8px; margin: 0 4px; line-height: 1;">⏮</button>',
-                    '<button class="forward10" title="Forward 10 seconds" style="background: none; border: none; color: #eee; font-size: 1.4em; cursor: pointer; padding: 5px 8px; margin: 0 4px; line-height: 1;">⏭</button>',
+                    '<button class="play-pause" title="Play/Pause" style="background: none; border: none; color: #eee; cursor: pointer; padding: 5px 0; margin: 0 4px; line-height: 1; width: 35px; display: inline-flex; justify-content: center;">' + ICONS.play + '</button>',
+                    '<button class="back10" title="Back 10 seconds" style="background: none; border: none; color: #eee; cursor: pointer; padding: 5px 6px; margin: 0 2px; line-height: 1;">' + ICONS.back10 + '</button>',
+                    '<button class="forward10" title="Forward 10 seconds" style="background: none; border: none; color: #eee; cursor: pointer; padding: 5px 6px; margin: 0 2px; line-height: 1;">' + ICONS.fwd10 + '</button>',
+                    '<span class="bar-spacer" style="display: none; flex: 1 1 0;"></span>',
                     '<input class="progress-bar" type="range" min="0" max="100" value="0" title="Seek" style="flex-grow: 1; margin: 0 10px; cursor: pointer; height: 8px; min-width: 80px; vertical-align: middle;" />',
                     '<span class="time-display" style="font-size: 0.9em; margin: 0 5px; font-family: monospace; white-space: nowrap; color: #ccc; min-width: 80px; text-align: center;">',
                         '<span class="current-time">0:00</span> / <span class="duration">0:00</span>',
                     '</span>',
+                    '<span class="row-break" style="display: none; order: -1; flex-basis: 100%; height: 0;"></span>',
                     '<span class="volume-controls" style="display: inline-flex; align-items: center; margin: 0 2px;">',
                         '<button class="volume-button" title="Mute (M)" style="background: none; border: none; color: #eee; cursor: pointer; padding: 5px 6px; margin: 0; line-height: 1;">' + ICONS.volHigh + '</button>',
                         '<input class="volume-slider" type="range" min="0" max="100" value="100" title="Volume" style="width: 0; opacity: 0; margin: 0; padding: 0; cursor: pointer; height: 6px; vertical-align: middle; transition: width 0.15s, opacity 0.15s, margin 0.15s;" />',
@@ -154,6 +161,10 @@
         this.errorDiv = document.getElementById(id + '-error');
         this.controlsDiv = this.container.querySelector('.custom-controls');
         this.wrapper = this.container.querySelector('.player-wrapper');
+        this.timeDisplay = this.container.querySelector('.time-display');
+        this.barSpacer = this.container.querySelector('.bar-spacer');
+        this.rowBreak = this.container.querySelector('.row-break');
+        this.compact = null;
         this.helpMenuOpen = false;
         this.speedMenu = null;
         this.muted = false;
@@ -173,7 +184,36 @@
             console.error('PlayerSync: Essential elements not found');
             return false;
         }
+        this.progressCss = this.progressBar.style.cssText;
+        this.timeCss = this.timeDisplay ? this.timeDisplay.style.cssText : '';
+        var self = this;
+        this.updateLayout();
+        window.addEventListener('resize', function() { self.updateLayout(); });
+        if (window.ResizeObserver) new window.ResizeObserver(function() { self.updateLayout(); }).observe(this.container);
         return true;
+    };
+
+    // v3.2: a narrow player (phones) gets two planned rows instead of a
+    // random wrap: the progress bar and time on top, the buttons below.
+    var COMPACT_WIDTH = 600;
+
+    PlayerSync.prototype.updateLayout = function() {
+        var compact = this.container.clientWidth > 0 && this.container.clientWidth < COMPACT_WIDTH;
+        if (compact === this.compact) return;
+        this.compact = compact;
+        if (compact) {
+            this.progressBar.style.cssText = this.progressCss + '; order: -2; flex: 1 1 auto; margin: 6px 10px 6px 4px; min-width: 0;';
+            if (this.timeDisplay) this.timeDisplay.style.cssText = this.timeCss + '; order: -1; min-width: 0; margin: 0 4px 0 0; flex: 0 0 auto;';
+            if (this.barSpacer) this.barSpacer.style.display = 'block';
+            if (this.rowBreak) this.rowBreak.style.display = 'block';
+            this.controlsDiv.style.rowGap = '2px';
+        } else {
+            this.progressBar.style.cssText = this.progressCss;
+            if (this.timeDisplay) this.timeDisplay.style.cssText = this.timeCss;
+            if (this.barSpacer) this.barSpacer.style.display = 'none';
+            if (this.rowBreak) this.rowBreak.style.display = 'none';
+            this.controlsDiv.style.rowGap = '';
+        }
     };
 
     PlayerSync.prototype.showError = function(msg) {
@@ -260,11 +300,11 @@
                     this.applyCaptions();
                     setTimeout(function() { self.applyCaptions(); }, 1000);
                 }
-                this.playPauseBtn.textContent = '⏸';
+                this.playPauseBtn.innerHTML = ICONS.pause;
                 this.startIntervals();
                 this.monitorEndTime();
             } else {
-                this.playPauseBtn.textContent = '▶';
+                this.playPauseBtn.innerHTML = ICONS.play;
                 this.clearIntervals();
                 if (e.data === window.YT.PlayerState.ENDED && this.endTime !== null) {
                     this.player.seekTo(this.endTime, true);
@@ -743,7 +783,7 @@
         var html = '';
         html += '<div style="font-size: 15px; font-weight: bold; margin-bottom: 12px; padding-bottom: 8px; color: #3ea6ff;">Info</div>';
         var key = function(k) { return '<span style="background-color: #555; padding: 2px 6px; border-radius: 3px; font-family: monospace;">' + k + '</span>'; };
-        html += '<div style="border-top: 1px solid #555; padding-top: 15px;"><div style="font-weight: bold; color: #3ea6ff; margin-bottom: 6px;">Video Controls:</div><ul style="color: #ccc; margin-top: 8px; padding-left: 20px;"><li><strong>▶</strong>: Play or pause the video.</li><li style="margin-top: 5px;"><strong>⏮</strong> / <strong>⏭</strong>: Skip backward or forward 10 seconds.</li><li style="margin-top: 5px;"><span style="display: inline-block; vertical-align: middle;">' + ICONS.volHigh + '</span>: Mute or unmute. Hover over it for the volume slider.</li><li style="margin-top: 5px;"><strong>CC</strong>: Turn English captions on or off. Your choice is remembered across lessons.</li><li style="margin-top: 5px;"><strong>1×</strong>: Choose the playback speed. Your speed is remembered across lessons.</li><li style="margin-top: 5px;"><span style="display: inline-block; vertical-align: middle;">' + ICONS.fsEnter + '</span>: Enter or exit fullscreen. The controls stay with you in fullscreen.</li></ul></div>';
+        html += '<div style="border-top: 1px solid #555; padding-top: 15px;"><div style="font-weight: bold; color: #3ea6ff; margin-bottom: 6px;">Video Controls:</div><ul style="color: #ccc; margin-top: 8px; padding-left: 20px;"><li><span style="display: inline-block; vertical-align: middle;">' + ICONS.play + '</span>: Play or pause the video.</li><li style="margin-top: 5px;"><span style="display: inline-block; vertical-align: middle;">' + ICONS.back10 + '</span> / <span style="display: inline-block; vertical-align: middle;">' + ICONS.fwd10 + '</span>: Skip backward or forward 10 seconds.</li><li style="margin-top: 5px;"><span style="display: inline-block; vertical-align: middle;">' + ICONS.volHigh + '</span>: Mute or unmute. Hover over it for the volume slider.</li><li style="margin-top: 5px;"><strong>CC</strong>: Turn English captions on or off. Your choice is remembered across lessons.</li><li style="margin-top: 5px;"><strong>1×</strong>: Choose the playback speed. Your speed is remembered across lessons.</li><li style="margin-top: 5px;"><span style="display: inline-block; vertical-align: middle;">' + ICONS.fsEnter + '</span>: Enter or exit fullscreen. The controls stay with you in fullscreen.</li></ul></div>';
         html += '<div style="border-top: 1px solid #555; padding-top: 15px;"><div style="font-weight: bold; color: #3ea6ff; margin-bottom: 6px;">Keyboard Shortcuts:</div><div style="color: #ccc;">Click the video first, then:</div><ul style="color: #ccc; margin-top: 8px; padding-left: 20px;"><li>' + key('Spacebar') + ': Play or pause.</li><li style="margin-top: 5px;">' + key('←') + ' / ' + key('→') + ': Back or forward 5 seconds.</li><li style="margin-top: 5px;">' + key('C') + ': Captions on or off.</li><li style="margin-top: 5px;">' + key('M') + ': Mute or unmute.</li><li style="margin-top: 5px;">' + key('F') + ': Fullscreen.</li></ul></div>';
         html += '<div style="margin-bottom: 15px; border-top: 1px solid #555; padding-top: 15px;"><div style="font-weight: bold; color: #3ea6ff; margin-bottom: 6px;">Captions in other languages:</div><div style="color: #ccc;">The CC button shows English captions. For other languages, please view the video on YouTube.com.</div></div>';
         html += '<div style="margin-bottom: 15px; border-top: 1px solid #555; padding-top: 15px;"><div style="font-weight: bold; color: #3ea6ff; margin-bottom: 6px;">Audio Tracks (English / Hindi):</div><div style="color: #ccc;">This video is available in both English and Hindi. To switch languages, please open the video on YouTube.com, change the audio track there, and then reload this page to apply your choice.</div></div>';
@@ -807,6 +847,6 @@
         initializePlayers();
     }
 
-    window.PlayerSync = { players: players, version: '3.1' };
+    window.PlayerSync = { players: players, version: '3.2' };
 
 })(window);
