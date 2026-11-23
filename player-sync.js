@@ -1,7 +1,7 @@
 /*
  * PlayerSync - A self-contained, reusable YouTube video player
  * Supports multiple instances per page with segment playback
- * Version: 3.0 (controls stay in fullscreen; volume, captions and speed menu)
+ * Version: 3.1 (expand button works on iPhone: CSS fullscreen where the browser has none)
  */
 
 (function(window) {
@@ -416,7 +416,7 @@
             if (t.getAttribute('data-rate')) self.setPlaybackRate(parseFloat(t.getAttribute('data-rate')));
             self.updateSpeedMenu();
         });
-        this.container.style.position = 'relative';
+        if (!this.pseudoFs) this.container.style.position = 'relative';
         this.container.appendChild(menu);
         this.speedMenu = menu;
         this.updateSpeedMenu();
@@ -513,8 +513,9 @@
     // cover the rest of the player (the bar, and fullscreen) so the same keys work.
     PlayerSync.prototype.onKeyDown = function(e) {
         if (!this.playerReady || e.ctrlKey || e.metaKey || e.altKey) return;
+        if (this.pseudoFs && e.key === 'Escape') { this.setPseudoFullscreen(false); e.preventDefault(); return; }
         var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
-        var inPlayer = fsEl === this.container || this.container.contains(document.activeElement);
+        var inPlayer = this.pseudoFs || fsEl === this.container || this.container.contains(document.activeElement);
         if (!inPlayer) return;
         var tag = (e.target && e.target.tagName) || '';
         if (tag === 'INPUT' && e.target.type !== 'range') return;
@@ -597,7 +598,9 @@
     // Until v3.0 only the video frame went fullscreen, and since the frame has
     // YouTube's own controls turned off, fullscreen had no controls at all.
     PlayerSync.prototype.toggleFullscreen = function() {
+        if (this.pseudoFs) { this.setPseudoFullscreen(false); return; }
         var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+        var self = this;
         try {
             if (fsEl) {
                 if (document.exitFullscreen) document.exitFullscreen();
@@ -605,15 +608,78 @@
                 return;
             }
             var c = this.container;
-            if (c.requestFullscreen) { c.requestFullscreen(); return; }
-            if (c.webkitRequestFullscreen) { c.webkitRequestFullscreen(); return; }
-            // iPhone Safari only allows the video itself to go fullscreen.
-            var iframe = this.player ? this.player.getIframe() : null;
-            if (iframe && iframe.webkitEnterFullscreen) iframe.webkitEnterFullscreen();
+            var allowed = document.fullscreenEnabled || document.webkitFullscreenEnabled;
+            if (allowed && c.requestFullscreen) {
+                var p = c.requestFullscreen();
+                if (p && p.catch) p.catch(function() { self.setPseudoFullscreen(true); });
+                return;
+            }
+            if (allowed && c.webkitRequestFullscreen) { c.webkitRequestFullscreen(); return; }
         } catch (e) { console.error('Error requesting fullscreen:', e); }
+        // iPhone has no fullscreen for page elements (only for a bare <video>,
+        // which the YouTube frame is not). Fill the screen with CSS instead.
+        this.setPseudoFullscreen(true);
+    };
+
+    // v3.1: "fullscreen" made with CSS, for iPhone. The player is pinned over
+    // the whole viewport and the page under it stops scrolling. The frame is
+    // not moved in the page, because a moved iframe reloads the video.
+    var TOP_Z = '2147483647';
+    var TRAPS = ['transform', 'filter', 'perspective', 'backdrop-filter', '-webkit-backdrop-filter', 'contain', 'will-change'];
+
+    PlayerSync.prototype.setPseudoFullscreen = function(on) {
+        if (on === !!this.pseudoFs) return;
+        this.pseudoFs = on;
+        var root = document.documentElement;
+        if (on) {
+            this.closeSpeedMenu();
+            this.closeHelpMenu();
+            this.savedScroll = [root.style.overflow, document.body.style.overflow];
+            root.style.overflow = 'hidden';
+            document.body.style.overflow = 'hidden';
+            // A parent with a transform or filter traps position: fixed inside
+            // it, and a parent with its own z-index can let the site header
+            // cover the player. Turn those off on the parents until exit.
+            this.savedAncestors = [];
+            for (var el = this.container.parentElement; el && el !== root; el = el.parentElement) {
+                var cs = window.getComputedStyle(el);
+                var props = [];
+                for (var i = 0; i < TRAPS.length; i++) {
+                    var v = cs.getPropertyValue(TRAPS[i]);
+                    if (v && v !== 'none' && v !== 'auto' && v !== 'normal') props.push([TRAPS[i], TRAPS[i] === 'will-change' ? 'auto' : 'none']);
+                }
+                if (cs.position !== 'static' && cs.zIndex !== 'auto') props.push(['z-index', TOP_Z]);
+                for (var j = 0; j < props.length; j++) {
+                    this.savedAncestors.push([el, props[j][0], el.style.getPropertyValue(props[j][0]), el.style.getPropertyPriority(props[j][0])]);
+                    el.style.setProperty(props[j][0], props[j][1], 'important');
+                }
+            }
+            this.container.style.cssText = this.containerCss + '; position: fixed; top: 0; left: 0; right: 0; bottom: 0; width: 100vw; height: 100vh; height: 100dvh; max-width: none; margin: 0; border: none; border-radius: 0; z-index: ' + TOP_Z + '; display: flex; flex-direction: column; background: #000; box-sizing: border-box; padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);';
+            if (this.wrapper) this.wrapper.style.cssText = this.wrapperCss + '; flex: 1 1 auto; height: auto; min-height: 0; padding-bottom: 0;';
+        } else {
+            this.closeSpeedMenu();
+            this.closeHelpMenu();
+            root.style.overflow = this.savedScroll ? this.savedScroll[0] : '';
+            document.body.style.overflow = this.savedScroll ? this.savedScroll[1] : '';
+            var saved = this.savedAncestors || [];
+            for (var k = saved.length - 1; k >= 0; k--) {
+                saved[k][0].style.setProperty(saved[k][1], saved[k][2], saved[k][3]);
+            }
+            this.savedAncestors = null;
+            this.container.style.cssText = this.containerCss;
+            if (this.wrapper) this.wrapper.style.cssText = this.wrapperCss;
+        }
+        this.updateFullscreenButton(on);
+    };
+
+    PlayerSync.prototype.updateFullscreenButton = function(isFs) {
+        if (!this.fullscreenBtn) return;
+        this.fullscreenBtn.title = isFs ? 'Exit fullscreen (F)' : 'Fullscreen (F)';
+        this.fullscreenBtn.innerHTML = isFs ? ICONS.fsExit : ICONS.fsEnter;
     };
 
     PlayerSync.prototype.onFullscreenChange = function() {
+        if (this.pseudoFs) return;
         var fsEl = document.fullscreenElement || document.webkitFullscreenElement;
         var isFs = fsEl === this.container;
         if (isFs) {
@@ -682,7 +748,7 @@
         html += '<div style="margin-bottom: 15px; border-top: 1px solid #555; padding-top: 15px;"><div style="font-weight: bold; color: #3ea6ff; margin-bottom: 6px;">Captions in other languages:</div><div style="color: #ccc;">The CC button shows English captions. For other languages, please view the video on YouTube.com.</div></div>';
         html += '<div style="margin-bottom: 15px; border-top: 1px solid #555; padding-top: 15px;"><div style="font-weight: bold; color: #3ea6ff; margin-bottom: 6px;">Audio Tracks (English / Hindi):</div><div style="color: #ccc;">This video is available in both English and Hindi. To switch languages, please open the video on YouTube.com, change the audio track there, and then reload this page to apply your choice.</div></div>';
         menu.innerHTML = html;
-        this.container.style.position = 'relative';
+        if (!this.pseudoFs) this.container.style.position = 'relative';
         this.container.appendChild(menu);
         this.helpMenu = menu;
         this.helpMenuOpen = true;
@@ -741,6 +807,6 @@
         initializePlayers();
     }
 
-    window.PlayerSync = { players: players, version: '3.0' };
+    window.PlayerSync = { players: players, version: '3.1' };
 
 })(window);

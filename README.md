@@ -50,7 +50,7 @@ PlayerSync will automatically:
 
 ## Files
 
-- **player-sync.js**: The main self-contained script (v3.0)
+- **player-sync.js**: The main self-contained script (v3.1)
 - **test.html**: Local testing environment with multiple test cases
 - **upload.sh**: Upload script for Google Cloud Storage
 - **DEPLOY.md**: Deployment guide
